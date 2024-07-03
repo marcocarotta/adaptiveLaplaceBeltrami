@@ -187,7 +187,7 @@ namespace adaptiveLB
  
  
   template <int spacedim>
-  LaplaceBeltramiProblem<spacedim>::LaplaceBeltramiProblem(
+  adaptiveLBProblem<spacedim>::adaptiveLBProblem(
     const unsigned degree)
     : fe(degree)
     , dof_handler(triangulation)
@@ -196,7 +196,7 @@ namespace adaptiveLB
  
  
   template <int spacedim>
-  void LaplaceBeltramiProblem<spacedim>::make_grid_and_dofs()
+  void adaptiveLBProblem<spacedim>::make_grid_and_dofs()
   {
     dof_handler.distribute_dofs(fe);
 
@@ -211,7 +211,7 @@ namespace adaptiveLB
     // instead we put all constraints on our function space in the AffineConstraints object.
     VectorTools::interpolate_boundary_values(dof_handler,
                                            0,
-                                           Functions::ZeroFunction<dim>(),
+                                           Functions::ZeroFunction<spacedim>(), // changed dim in spacedim
                                            constraints);
 
     constraints.close();
@@ -254,7 +254,7 @@ namespace adaptiveLB
  
  
   template <int spacedim>
-  void LaplaceBeltramiProblem<spacedim>::assemble_system()
+  void adaptiveLBProblem<spacedim>::assemble_system()
   {
     system_matrix = 0;
     system_rhs    = 0;
@@ -330,7 +330,7 @@ namespace adaptiveLB
  
  
   template <int spacedim>
-  void LaplaceBeltramiProblem<spacedim>::solve()
+  void adaptiveLBProblem<spacedim>::solve()
   {
     SolverControl solver_control(solution.size(), 1e-7 * system_rhs.l2_norm());
     SolverCG<Vector<double>> cg(solver_control);
@@ -344,7 +344,7 @@ namespace adaptiveLB
   }
  
   template <int spacedim> // changed dim in spacedim
-  void Step6<spacedim>::refine_grid() // changed dim in spacedim
+  void adaptiveLBProblem<spacedim>::refine_grid() // changed dim in spacedim
   {
     Vector<float> estimated_error_per_cell(triangulation.n_active_cells());
   
@@ -364,7 +364,7 @@ namespace adaptiveLB
  
  
   template <int spacedim>
-  void LaplaceBeltramiProblem<spacedim>::output_results(const unsigned int cycle) const
+  void adaptiveLBProblem<spacedim>::output_results(const unsigned int cycle) const
   {
     {
       // its a little bit tricky, to me, to understand if this part is correct or not. Maybe read better the step-6.
@@ -394,7 +394,7 @@ namespace adaptiveLB
  
  
   template <int spacedim> // dont know if i want to put it in this program.
-  void LaplaceBeltramiProblem<spacedim>::compute_error() const
+  void adaptiveLBProblem<spacedim>::compute_error() const
   {
     Vector<float> difference_per_cell(triangulation.n_active_cells());
     VectorTools::integrate_difference(mapping,
@@ -415,7 +415,7 @@ namespace adaptiveLB
  
  
   template <int spacedim>
-  void LaplaceBeltramiProblem<spacedim>::run()
+  void adaptiveLBProblem<spacedim>::run()
   {
     for (unsigned int cycle = 0; cycle < 8; ++cycle)
     {
@@ -470,9 +470,9 @@ int main()
 {
   try
     {
-      using namespace Step38;
+      using namespace adaptiveLB;
  
-      LaplaceBeltramiProblem<3> laplace_beltrami;
+      adaptiveLBProblem<3> laplace_beltrami;
       laplace_beltrami.run();
     }
   catch (std::exception &exc)
