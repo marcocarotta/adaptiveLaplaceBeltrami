@@ -3,7 +3,25 @@
 - fare function solve_laplace-beltrami
 - cambiare rhs che in step 6 è 0 (credo) e ora hai quello con il coseno
 - capire se fare entrambi adaptive o no
+- scrivere nel readme quali sono i comandi da usare per lanciare con docker
 - 
+
+
+## COMMENTS
+- forse dovrei partire da adaptiveLB perchè credo che in ogni caso dovrei aggiungere affine constraint quando faccio lo step 4 dopo aver fatto lo step 38. In realta credo che basti aggiungere step 6 invece che step 4 e non sfruttare il fatto della griglia adattiva.
+- una pipiline potrebbe essere
+  - runnare step 38
+  - identificare  i gradi di libertà sul bordo con quelli sulla superficie
+  - runnare step 6 con le condizioni al brodo ottenute da step 38 
+
+  bisogna aggiustare il fatto che step 6 non ha lo stesso dominio di step 38
+
+
+## PLANS 
+- [CURRENT] partire da adaptiveLB e aggiungere step 6
+- partire da step 38 e aggiungere step 4 modificato aggiungendo gli affineconstraint
+- partire da step 38 e aggiungere step 6 senza utilizzare ladattivita 
+
  
 
 

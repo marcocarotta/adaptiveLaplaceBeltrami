@@ -1,10 +1,3 @@
-//COMMENTS
-//  - maybe this comments section needs to go in the README file
-//  - as now the project is to take the step-38 as a skeleton and modify it in order
-//    to obtain what we want
-//  - 
-
-
 #include <deal.II/base/quadrature_lib.h>
 #include <deal.II/base/function.h>
  
@@ -43,7 +36,7 @@ namespace adaptiveLB
   using namespace dealii;
  
  
- 
+
   template <int spacedim>
   class adaptiveLBProblem
   {
@@ -60,7 +53,7 @@ namespace adaptiveLB
     void output_results(const unsigned int cycle) const; // we embed the cycle number in the output file name as in step-6
     void compute_error() const;
     void refine_grid(); // add this function as in step-6
- 
+    
  
     Triangulation<dim, spacedim> triangulation;
     FE_Q<dim, spacedim>          fe;
