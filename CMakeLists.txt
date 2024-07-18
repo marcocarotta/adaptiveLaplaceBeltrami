@@ -1,8 +1,8 @@
 # Set the name of the target executable
-set(TARGET "adaptiveLB")
+set(TARGET "coupledLBP")
 
 # Set the source file for the target
-set(TARGET_SRC "adaptiveLB.cc")
+set(TARGET_SRC "coupledLBP.cc")
 
 # Minimum required version of CMake
 cmake_minimum_required(VERSION 3.13.4)
