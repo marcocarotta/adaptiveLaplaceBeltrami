@@ -39,6 +39,8 @@
 #include <deal.II/numerics/vector_tools.h>
 #include <deal.II/numerics/matrix_tools.h>
 #include <deal.II/numerics/error_estimator.h> //from step-6
+
+#include <deal.II/base/index_set.h> // added for doftools::extract_boundary_mesh
  
 #include <fstream>
 #include <iostream>
@@ -47,7 +49,7 @@ namespace adaptiveLB
 {
   using namespace dealii;
  
- 
+  const double EPS = 1e-08;
 
   template <int spacedim>
   class adaptiveLBProblem
@@ -82,12 +84,15 @@ namespace adaptiveLB
     // the following are the attributes for the coupling 
     
     void find_support_points_on_surface();
-    void compute_surface_normals();
+    void compute_surface_normals(); //NOT WORKING 
 
-    std::vector<Point<spacedim>> support_points_on_surface; // not sure if this is correct
-    std::vector<Tensor<1, spacedim>> surface_normals; // not sure if this is correct
-
+    //the two following need to be changed, anzi forse vanno tolti
+    // Vector<Point<spacedim>> support_points_on_surface; // not sure if this is correct
+    // Vector<Tensor<1, spacedim>> surface_normals; // not sure if this is correct
+ 
+  
     // the attributes below are for the poisson problem, from step 6
+    // it may be that i dont need them all
 
     void poisson_make_grid_and_dofs(); // in step-6 is called setup_system
     void poisson_assemble_system();
@@ -98,6 +103,7 @@ namespace adaptiveLB
     
     FE_Q<spacedim>       poisson_fe; //changed dimension in spacedim
     DoFHandler<spacedim> poisson_dof_handler; //changed dimension in spacedim
+    Mapping<spacedim>    poisson_mapping; // there was no mapping in step-6
   
     AffineConstraints<double> poisson_constraints;
   
@@ -359,8 +365,6 @@ namespace adaptiveLB
   }
  
  
- 
- 
   template <int spacedim>
   void adaptiveLBProblem<spacedim>::solve()
   {
@@ -375,6 +379,7 @@ namespace adaptiveLB
     constraints.distribute(solution);
   }
  
+
   template <int spacedim> // changed dim in spacedim
   void adaptiveLBProblem<spacedim>::refine_grid() // changed dim in spacedim
   {
@@ -421,9 +426,7 @@ namespace adaptiveLB
       data_out.write_vtk(output);
     }
   }
- 
- 
- 
+
  
   template <int spacedim> // dont know if i want to put it in this program.
   void adaptiveLBProblem<spacedim>::compute_error() const
@@ -443,87 +446,213 @@ namespace adaptiveLB
     std::cout << "H1 error = " << h1_error << std::endl;
   }
  
-// start of the coupling function
 
-void adaptiveLBProblem<spacedim>::find_support_points_on_surface()
-{
-  support_points_on_surface.clear();
-  support_points_on_surface.reserve(triangulation.n_active_cells() * 4); // anche qui non capisco perche vorrebbe fare cosi
-  // non credo funzioni da qui in poi
-  for (const auto &cell : dof_handler.active_cell_iterators())
-    {
-      for (const auto &vertex : cell->vertex_indices())
-        {
-          support_points_on_surface.push_back(cell->vertex(vertex));
+
+
+
+
+
+ 
+  // start of the coupling functions
+
+  void adaptiveLBProblem<spacedim>::find_support_points_on_surface()
+  {
+    // assuming that dof_handler and poisson_dof_handler is already initialized
+
+    // Map DoFs to Support Points
+    auto support_points_volume = DoFTools::map_dofs_to_support_points(poisson_mapping, poisson_dof_handler);
+    auto support_points_surface = DoFTools::map_dofs_to_support_points(mapping, dof_handler);
+
+    // Extract Boundary DoFs
+    auto boundary_dofs = DoFTools::extract_boundary_dofs(poisson_dof_handler); // maybe i need to specify only boundary with id = 0 
+
+    //Identify Close Support Points and Map Surface DoFs to Volume DoFs
+    std::map<types::global_dof_index, types::global_dof_index> surface_to_volume_dof_mapping;
+
+    for (const auto &surface_pair : support_points_surface) {
+        for (const auto &boundary_dof : boundary_dofs) {
+            const Point<dim> &point_volume = support_points_volume[boundary_dof];
+            if ((surface_pair.second - point_volume).norm() < EPS) {
+                surface_to_volume_dof_mapping[surface_pair.first] = boundary_dof; // Map surface DoF to volume DoF
+                break; // Assuming one-to-one mapping, break after the first close point is found
+            }
         }
     }
-}
 
-void adaptiveLBProblem<spacedim>::compute_surface_normals()
-{
-  surface_normals.clear();
-  surface_normals.reserve(support_points_on_surface.size());
-  // non credo funzioni da qui in poi
-
-  for (const auto &point : support_points_on_surface)
-    {
-      surface_normals.push_back(point / point.norm());
+    // Apply Boundary Conditions
+    for (const auto &map_pair : surface_to_volume_dof_mapping) {
+        poisson_constraints.add_line(map_pair.second);
+        poisson_constraints.set_inhomogeneity(map_pair.second, g[map_pair.first]);
     }
-}
+  }
+
+  void adaptiveLBProblem<spacedim>::compute_surface_normals() // this function is not needed at the moment now, as we are only coupling in one direction
+  {
+    /*code here*/
+  }
 
 
-// end of the coupling function
+
+  // end of the coupling functions
 
 
-// start of  the poisson problem functions
 
 
-// end of poisson functions
 
-template <int spacedim>
-void Step6<spacedim>::poisson_make_grid_and_dofs()
-{
-  poisson_dof_handler.distribute_dofs(fe);
+
+
+  // start of  the poisson problem functions
+
+  template <int spacedim>
+  void adaptiveLBProblem<spacedim>::poisson_make_grid_and_dofs()
+  {
+    poisson_dof_handler.distribute_dofs(poisson_fe);
+
+    poisson_solution.reinit(poisson_dof_handler.n_dofs());
+    poisson_system_rhs.reinit(poisson_dof_handler.n_dofs());
+
+    poisson_constraints.clear();
+    DoFTools::make_hanging_node_constraints(poisson_dof_handler, poisson_constraints);
+
+    // the following is not needed anymore as we will put the constraints in the find_support_points_on_surface function
+
+    // VectorTools::interpolate_boundary_values(poisson_dof_handler,
+    //                                         0,
+    //                                         Functions::ZeroFunction<dim>(),
+    //                                         constraints);
+
+    poisson_constraints.close();
+
+    DynamicSparsityPattern dsp(poissn_dof_handler.n_dofs());
+    DoFTools::make_sparsity_pattern(poissn_dof_handler,
+                                    dsp,
+                                    poisson_constraints,
+                                    /*keep_constrained_dofs = */ false); // maybe i need to change this to true?? dont think so because they didnt do it in the step-6 
+
+    poisson_sparsity_pattern.copy_from(dsp);
+
+    poisson_system_matrix.reinit(sparsity_pattern);
+  }
+
+
+
+  template <int spacedim>
+  void adaptiveLBProblem<spacedim>::poisson_assemble_system()
+  {
+    // DA CAMBIARE, COPIATA DA STEP-6 (dovrebbe essere appost, controlla che non hai dimenticato di cambiare qualcosa)
+    const QGauss<dim> quadrature_formula(poisson_fe.degree + 1);
+  
+    FEValues<dim> fe_values(poisson_fe,
+                            quadrature_formula,
+                            update_values | update_gradients |
+                              update_quadrature_points | update_JxW_values);
+  
+    const unsigned int dofs_per_cell = poisson_fe.n_dofs_per_cell();
+  
+    FullMatrix<double> cell_matrix(dofs_per_cell, dofs_per_cell);
+    Vector<double>     cell_rhs(dofs_per_cell);
+  
+    std::vector<types::global_dof_index> local_dof_indices(dofs_per_cell);
+  
+    for (const auto &cell : poisson_dof_handler.active_cell_iterators())
+      {
+        cell_matrix = 0;
+        cell_rhs    = 0;
+  
+        fe_values.reinit(cell);
+  
+        for (const unsigned int q_index : fe_values.quadrature_point_indices())
+          {
+            const double current_coefficient =
+              coefficient(fe_values.quadrature_point(q_index));
+            for (const unsigned int i : fe_values.dof_indices())
+              {
+                for (const unsigned int j : fe_values.dof_indices())
+                  cell_matrix(i, j) +=
+                    (current_coefficient *              // a(x_q)
+                    fe_values.shape_grad(i, q_index) * // grad phi_i(x_q)
+                    fe_values.shape_grad(j, q_index) * // grad phi_j(x_q)
+                    fe_values.JxW(q_index));           // dx
+  
+                cell_rhs(i) += (1.0 *                               // f(x)
+                                fe_values.shape_value(i, q_index) * // phi_i(x_q)
+                                fe_values.JxW(q_index));            // dx
+              }
+          }
+  
+        cell->get_dof_indices(local_dof_indices);
+        poisson_constraints.distribute_local_to_global(
+          cell_matrix, cell_rhs, local_dof_indices, poisson_system_matrix, poisson_system_rhs);
+      }
+  }
+  
+  
+  
+  
+  template <int spacedim>
+  void adaptiveLBProblem<spacedim>::poisson_solve()
+  {
+    // DA CAMBIARE, COPIATA DA STEP-6 (dovrebbe essere appost, controlla che non hai dimenticato di cambiare qualcosa)
+
+    SolverControl solver_control(poisson_solution.size(), 1e-7 * poisson_system_rhs.l2_norm());
+    SolverCG<Vector<double>> cg(solver_control);
  
-  poisson_solution.reinit(dof_handler.n_dofs());
-  poisson_system_rhs.reinit(dof_handler.n_dofs());
+    PreconditionSSOR<SparseMatrix<double>> preconditioner;
+    preconditioner.initialize(poisson_system_matrix, 1.2);
  
-  poisson_constraints.clear();
-  DoFTools::make_hanging_node_constraints(dof_handler, constraints);
- 
- 
-  VectorTools::interpolate_boundary_values(dof_handler,
-                                           0,
-                                           Functions::ZeroFunction<dim>(),
-                                           constraints);
- 
-  constraints.close();
- 
-  DynamicSparsityPattern dsp(dof_handler.n_dofs());
-  DoFTools::make_sparsity_pattern(dof_handler,
-                                  dsp,
-                                  constraints,
-                                  /*keep_constrained_dofs = */ false);
- 
-  sparsity_pattern.copy_from(dsp);
- 
-  system_matrix.reinit(sparsity_pattern);
-}
+    cg.solve(poisson_system_matrix, poisson_solution, poisson_system_rhs, preconditioner);
+    
+    constraints.distribute(poisson_solution);
+  }
+  
+  
+  
+  template <int spacedim>
+  void adaptiveLBProblem<spacedim>::poisson_refine_grid()
+  {
+    // DA CAMBIARE, COPIATA DA STEP-6 (dovrebbe essere appost, controlla che non hai dimenticato di cambiare qualcosa)
+
+    Vector<float> estimated_error_per_cell(poisson_triangulation.n_active_cells());
+  
+    KellyErrorEstimator<dim>::estimate(poisson_dof_handler,
+                                      QGauss<dim - 1>(fe.degree + 1),
+                                      {},
+                                      poisson_solution,
+                                      estimated_error_per_cell);
+  
+    GridRefinement::refine_and_coarsen_fixed_number(poisson_triangulation,
+                                                    estimated_error_per_cell,
+                                                    0.3,
+                                                    0.03);
+  
+    poisson_triangulation.execute_coarsening_and_refinement();
+  }
+
+  // end of poisson functions
+
 
  
+
+
+
+
+
+
  
   template <int spacedim>
   void adaptiveLBProblem<spacedim>::run()
   {
-    for (unsigned int cycle = 0; cycle < 8; ++cycle)
+    // DA CONTROLLARE SE è CORRETTO
+    const unsigned int max_cycle = 1; // not needed now to do refinement so the cycle is set to 1.
+    for (unsigned int cycle = 0; cycle < max_cycle; ++cycle) 
     {
       std::cout << "Cycle " << cycle << ':' << std::endl;
  
       if (cycle == 0)
         {
-          {
-            Triangulation<spacedim> volume_mesh;
-            GridGenerator::half_hyper_ball(volume_mesh);
+          {// maybe i could remove the scope
+            GridGenerator::half_hyper_ball(poisson_triangulation);
+            poisson_triangulation.refine_global(1);
       
             const std::set<types::boundary_id> boundary_ids = {0};
       
@@ -534,29 +663,35 @@ void Step6<spacedim>::poisson_make_grid_and_dofs()
           triangulation.set_all_manifold_ids(0);
           triangulation.set_manifold(0, SphericalManifold<dim, spacedim>());
       
-          triangulation.refine_global(1);
           // the following is not needed anymore
           /*
+          triangulation.refine_global(1);
           GridGenerator::hyper_ball(triangulation);
           triangulation.refine_global(1);
           */
         }
       else
-        refine_grid();
+        refine_grid(); 
  
  
       std::cout << "   Number of active cells:       "
                 << triangulation.n_active_cells() << std::endl;
  
       make_grid_and_dofs();
- 
       std::cout << "   Number of degrees of freedom: " << dof_handler.n_dofs()
                 << std::endl;
  
       assemble_system();
       solve();
-      output_results(cycle);
-      compute_error(); // dont know if i want to put it in this program.
+      // output_results(cycle);
+      // compute_error(); // dont know if i want to put it in this program.
+
+      poisson_make_grid_and_dofs();
+
+      find_support_points_on_surface();
+
+      poisson_assemble_system();
+      poisson_solve();
     }
 
   }

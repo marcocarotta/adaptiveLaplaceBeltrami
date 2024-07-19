@@ -1,6 +1,7 @@
 {
     "files.associations": {
         ".fantomasignore": "ignore",
-        "step-6": "c"
+        "step-6": "c",
+        "string": "cpp"
     }
 }
