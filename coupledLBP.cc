@@ -103,7 +103,7 @@ namespace adaptiveLB
     
     FE_Q<spacedim>       poisson_fe; //changed dimension in spacedim
     DoFHandler<spacedim> poisson_dof_handler; //changed dimension in spacedim
-    Mapping<spacedim>    poisson_mapping; // there was no mapping in step-6
+    MappingQ<spacedim>    poisson_mapping; // there was no mapping in step-6
   
     AffineConstraints<double> poisson_constraints;
   
@@ -226,10 +226,13 @@ namespace adaptiveLB
  
   template <int spacedim>
   adaptiveLBProblem<spacedim>::adaptiveLBProblem(
-    const unsigned degree)
+    const unsigned int degree)
     : fe(degree)
     , dof_handler(triangulation)
     , mapping(degree)
+    , poisson_fe(degree) // dont know if this line is necessary
+    , poisson_dof_handler(poisson_triangulation) // dont know if this line is necessary
+    , poisson_mapping(degree) // dont know if this line is necessary
   {}
  
  
@@ -454,7 +457,7 @@ namespace adaptiveLB
 
  
   // start of the coupling functions
-
+  template <int spacedim>
   void adaptiveLBProblem<spacedim>::find_support_points_on_surface()
   {
     // assuming that dof_handler and poisson_dof_handler is already initialized
@@ -471,7 +474,7 @@ namespace adaptiveLB
 
     for (const auto &surface_pair : support_points_surface) {
         for (const auto &boundary_dof : boundary_dofs) {
-            const Point<dim> &point_volume = support_points_volume[boundary_dof];
+            const Point<spacedim> &point_volume = support_points_volume[boundary_dof];
             if ((surface_pair.second - point_volume).norm() < EPS) {
                 surface_to_volume_dof_mapping[surface_pair.first] = boundary_dof; // Map surface DoF to volume DoF
                 break; // Assuming one-to-one mapping, break after the first close point is found
@@ -482,10 +485,10 @@ namespace adaptiveLB
     // Apply Boundary Conditions
     for (const auto &map_pair : surface_to_volume_dof_mapping) {
         poisson_constraints.add_line(map_pair.second);
-        poisson_constraints.set_inhomogeneity(map_pair.second, g[map_pair.first]);
+        poisson_constraints.set_inhomogeneity(map_pair.second, solution[map_pair.first]); // dont know if it is right to access solution with the global dof index
     }
   }
-
+  template <int spacedim>
   void adaptiveLBProblem<spacedim>::compute_surface_normals() // this function is not needed at the moment now, as we are only coupling in one direction
   {
     /*code here*/
@@ -523,8 +526,8 @@ namespace adaptiveLB
 
     poisson_constraints.close();
 
-    DynamicSparsityPattern dsp(poissn_dof_handler.n_dofs());
-    DoFTools::make_sparsity_pattern(poissn_dof_handler,
+    DynamicSparsityPattern dsp(poisson_dof_handler.n_dofs());
+    DoFTools::make_sparsity_pattern(poisson_dof_handler,
                                     dsp,
                                     poisson_constraints,
                                     /*keep_constrained_dofs = */ false); // maybe i need to change this to true?? dont think so because they didnt do it in the step-6 
@@ -539,10 +542,10 @@ namespace adaptiveLB
   template <int spacedim>
   void adaptiveLBProblem<spacedim>::poisson_assemble_system()
   {
-    // DA CAMBIARE, COPIATA DA STEP-6 (dovrebbe essere appost, controlla che non hai dimenticato di cambiare qualcosa)
-    const QGauss<dim> quadrature_formula(poisson_fe.degree + 1);
+    // DA CAMBIARE, COPIATA DA STEP-6 (bisogna cambiare tutto dentro i 3 for)
+    const QGauss<spacedim> quadrature_formula(poisson_fe.degree + 1);
   
-    FEValues<dim> fe_values(poisson_fe,
+    FEValues<spacedim> fe_values(poisson_fe,
                             quadrature_formula,
                             update_values | update_gradients |
                               update_quadrature_points | update_JxW_values);
@@ -656,7 +659,7 @@ namespace adaptiveLB
       
             const std::set<types::boundary_id> boundary_ids = {0};
       
-            GridGenerator::extract_boundary_mesh(volume_mesh,
+            GridGenerator::extract_boundary_mesh(poisson_triangulation,
                                                 triangulation,
                                                 boundary_ids);
           }
