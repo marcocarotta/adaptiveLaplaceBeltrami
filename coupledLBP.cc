@@ -487,6 +487,8 @@ namespace adaptiveLB
         poisson_constraints.add_line(map_pair.second);
         poisson_constraints.set_inhomogeneity(map_pair.second, solution[map_pair.first]); // dont know if it is right to access solution with the global dof index
     }
+    // close the constraints (before i tried to do it in the poisson_make_grid_and_dofs function but thrwos an error)
+    poisson_constraints.close();
   }
   template <int spacedim>
   void adaptiveLBProblem<spacedim>::compute_surface_normals() // this function is not needed at the moment now, as we are only coupling in one direction
@@ -524,7 +526,8 @@ namespace adaptiveLB
     //                                         Functions::ZeroFunction<dim>(),
     //                                         constraints);
 
-    poisson_constraints.close();
+    //  cant close poisson constraints here, as we will add more constraints in the find_support_points_on_surface function
+    // poisson_constraints.close();
 
     DynamicSparsityPattern dsp(poisson_dof_handler.n_dofs());
     DoFTools::make_sparsity_pattern(poisson_dof_handler,
@@ -534,7 +537,7 @@ namespace adaptiveLB
 
     poisson_sparsity_pattern.copy_from(dsp);
 
-    poisson_system_matrix.reinit(sparsity_pattern);
+    poisson_system_matrix.reinit(poisson_sparsity_pattern);
   }
 
 
@@ -566,13 +569,15 @@ namespace adaptiveLB
   
         for (const unsigned int q_index : fe_values.quadrature_point_indices())
           {
-            const double current_coefficient =
-              coefficient(fe_values.quadrature_point(q_index));
+            //removed the coefficient as we would like to solve a standard poisson problem
+            // const double current_coefficient =
+            //   coefficient(fe_values.quadrature_point(q_index));
             for (const unsigned int i : fe_values.dof_indices())
               {
                 for (const unsigned int j : fe_values.dof_indices())
                   cell_matrix(i, j) +=
-                    (current_coefficient *              // a(x_q)
+                    // remove coefficient also here
+                    (//current_coefficient *              // a(x_q)
                     fe_values.shape_grad(i, q_index) * // grad phi_i(x_q)
                     fe_values.shape_grad(j, q_index) * // grad phi_j(x_q)
                     fe_values.JxW(q_index));           // dx
