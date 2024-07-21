@@ -386,6 +386,7 @@ namespace adaptiveLB
   template <int spacedim> // changed dim in spacedim
   void adaptiveLBProblem<spacedim>::refine_grid() // changed dim in spacedim
   {
+    // di sicuro va aggiustato come fare il refine grid in modo che sia coerente tra i due problemi
     Vector<float> estimated_error_per_cell(triangulation.n_active_cells());
   
     KellyErrorEstimator<dim,spacedim>::estimate(dof_handler, // added space dim in the KellyErrorEstimator, dont know if is correct. Maybe remove it, look at step -6.
@@ -545,7 +546,7 @@ namespace adaptiveLB
   template <int spacedim>
   void adaptiveLBProblem<spacedim>::poisson_assemble_system()
   {
-    // DA CAMBIARE, COPIATA DA STEP-6 (bisogna cambiare tutto dentro i 3 for)
+    // DA CAMBIARE, COPIATA DA STEP-6 (dovrebbe essere apposto)
     const QGauss<spacedim> quadrature_formula(poisson_fe.degree + 1);
   
     FEValues<spacedim> fe_values(poisson_fe,
@@ -569,7 +570,7 @@ namespace adaptiveLB
   
         for (const unsigned int q_index : fe_values.quadrature_point_indices())
           {
-            //removed the coefficient as we would like to solve a standard poisson problem
+            // removed the coefficient as we would like to solve a standard poisson problem
             // const double current_coefficient =
             //   coefficient(fe_values.quadrature_point(q_index));
             for (const unsigned int i : fe_values.dof_indices())
@@ -618,7 +619,7 @@ namespace adaptiveLB
   template <int spacedim>
   void adaptiveLBProblem<spacedim>::poisson_refine_grid()
   {
-    // DA CAMBIARE, COPIATA DA STEP-6 (dovrebbe essere appost, controlla che non hai dimenticato di cambiare qualcosa)
+    // DA CAMBIARE, COPIATA DA STEP-6 (di sicuro va aggiustato come fare il refine grid in modo che sia coerente tra i due problemi)
 
     Vector<float> estimated_error_per_cell(poisson_triangulation.n_active_cells());
   
@@ -682,11 +683,11 @@ namespace adaptiveLB
         refine_grid(); 
  
  
-      std::cout << "   Number of active cells:       "
+      std::cout << "   Number of active cells Laplace-Beltrami:       "
                 << triangulation.n_active_cells() << std::endl;
  
       make_grid_and_dofs();
-      std::cout << "   Number of degrees of freedom: " << dof_handler.n_dofs()
+      std::cout << "   Number of degrees of freedom Laplace-Beltrami: " << dof_handler.n_dofs()
                 << std::endl;
  
       assemble_system();
@@ -694,7 +695,12 @@ namespace adaptiveLB
       // output_results(cycle);
       // compute_error(); // dont know if i want to put it in this program.
 
+      std::cout << "   Number of active cells Poisson:       "
+          << poisson_triangulation.n_active_cells() << std::endl;
+      
       poisson_make_grid_and_dofs();
+      std::cout << "   Number of degrees of freedom Poisson: " << poisson_dof_handler.n_dofs()
+                << std::endl;
 
       find_support_points_on_surface();
 
