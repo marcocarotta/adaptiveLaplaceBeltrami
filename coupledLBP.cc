@@ -691,7 +691,7 @@ namespace adaptiveLB
         {
           {// maybe i could remove the scope
             GridGenerator::half_hyper_ball(poisson_triangulation);
-            poisson_triangulation.refine_global(1);
+            poisson_triangulation.refine_global(3);
       
             const std::set<types::boundary_id> boundary_ids = {0};
       
