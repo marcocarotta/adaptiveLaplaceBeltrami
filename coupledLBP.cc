@@ -84,7 +84,7 @@ namespace adaptiveLB
     // the following are the attributes for the coupling 
     
     void find_support_points_on_surface();
-    void compute_surface_normals(); //NOT WORKING 
+    void compute_surface_normals(); //NOT IMPLEMENTED YET 
 
     //the two following need to be changed, anzi forse vanno tolti
     // Vector<Point<spacedim>> support_points_on_surface; // not sure if this is correct
@@ -97,7 +97,9 @@ namespace adaptiveLB
     void poisson_make_grid_and_dofs(); // in step-6 is called setup_system
     void poisson_assemble_system();
     void poisson_solve();
-    void poisson_refine_grid(); 
+    void poisson_refine_grid(); //NOT IMPLEMENTED YET
+    void poisson_output_results(const unsigned int cycle) const; // we embed the cycle number in the output file name as in step-6
+
 
     Triangulation<spacedim> poisson_triangulation; //changed dimension in spacedim
     
@@ -410,7 +412,7 @@ namespace adaptiveLB
     {
       // its a little bit tricky, to me, to understand if this part is correct or not. Maybe read better the step-6.
       GridOut               grid_out;
-      std::ofstream         output("grid-" + std::to_string(cycle) + ".gnuplot");
+      std::ofstream         output("laplacebeltrami_grid-" + std::to_string(cycle) + ".gnuplot");
       GridOutFlags::Gnuplot gnuplot_flags(false, 5);
       grid_out.set_flags(gnuplot_flags);
       grid_out.write_gnuplot(triangulation, output, &mapping);
@@ -425,7 +427,7 @@ namespace adaptiveLB
       data_out.build_patches(mapping, mapping.get_degree());
   
       const std::string filename =
-        "solution" + std::to_string(spacedim) + "d-cycle_" + std::to_string(cycle)+ ".vtk";
+        "laplacebeltrami_solution" + std::to_string(spacedim) + "d-cycle_" + std::to_string(cycle)+ ".vtk";
       std::ofstream output(filename);
       data_out.write_vtk(output);
     }
@@ -486,7 +488,7 @@ namespace adaptiveLB
     // Apply Boundary Conditions
     for (const auto &map_pair : surface_to_volume_dof_mapping) {
         poisson_constraints.add_line(map_pair.second);
-        poisson_constraints.set_inhomogeneity(map_pair.second, solution[map_pair.first]); // dont know if it is right to access solution with the global dof index
+        poisson_constraints.set_inhomogeneity(map_pair.second, solution[map_pair.first]); // credo sia giusto usare solution, guarda ##doubt in todo.md
     }
     // close the constraints (before i tried to do it in the poisson_make_grid_and_dofs function but thrwos an error)
     poisson_constraints.close();
@@ -637,6 +639,34 @@ namespace adaptiveLB
     poisson_triangulation.execute_coarsening_and_refinement();
   }
 
+
+  template <int spacedim>
+  void adaptiveLBProblem<spacedim>::poisson_output_results(const unsigned int cycle) const
+  {
+    {
+      GridOut               grid_out;
+      std::ofstream         output("poisson_grid-" + std::to_string(cycle) + ".gnuplot");
+      GridOutFlags::Gnuplot gnuplot_flags(false, 5);
+      grid_out.set_flags(gnuplot_flags);
+      grid_out.write_gnuplot(poisson_triangulation, output, &poisson_mapping);
+    }
+
+    {
+      DataOut<spacedim, spacedim> data_out;
+      data_out.attach_dof_handler(poisson_dof_handler);
+      data_out.add_data_vector(poisson_solution,
+                              "solution",
+                              DataOut<spacedim, spacedim>::type_dof_data);
+      data_out.build_patches(poisson_mapping, poisson_mapping.get_degree());
+  
+      const std::string filename =
+        "poisson_solution" + std::to_string(spacedim) + "d-cycle_" + std::to_string(cycle)+ ".vtk";
+      std::ofstream output(filename);
+      data_out.write_vtk(output);
+    }
+  }
+
+
   // end of poisson functions
 
 
@@ -692,7 +722,7 @@ namespace adaptiveLB
  
       assemble_system();
       solve();
-      // output_results(cycle);
+      output_results(cycle);
       // compute_error(); // dont know if i want to put it in this program.
 
       std::cout << "   Number of active cells Poisson:       "
@@ -706,6 +736,8 @@ namespace adaptiveLB
 
       poisson_assemble_system();
       poisson_solve();
+
+      poisson_output_results(cycle);
     }
 
   }
@@ -719,7 +751,7 @@ int main()
     {
       using namespace adaptiveLB;
  
-      adaptiveLBProblem<3> laplace_beltrami;
+      adaptiveLBProblem<2> laplace_beltrami;
       laplace_beltrami.run();
     }
   catch (std::exception &exc)

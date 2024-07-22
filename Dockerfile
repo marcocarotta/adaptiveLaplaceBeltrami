@@ -8,9 +8,19 @@ WORKDIR /usr/src/coupled-LaplaceBeltrami-Poisson
 COPY . /usr/src/coupled-LaplaceBeltrami-Poisson
 
 # Compile the C++ program
-RUN mkdir build && cd build && cmake .. && make # seems to be not working
+RUN mkdir build && cd build && cmake .. && make
 
 # Run the executable
-CMD ["./build/coupledLBP"]
+# CMD ["./build/coupledLBP"]
 
-# TODO Maybe need copy back to the original folder some output 
+# # TODO Maybe need copy back to the original folder some output 
+# # Copy output files to a specific directory (ensure the directory exists)
+# RUN mkdir -p /usr/src/coupled-LaplaceBeltrami-Poisson/output
+# CMD cp solution-*.vtk /usr/src/coupled-LaplaceBeltrami-Poisson/output/ && cp poisson_solution-*.vtk /usr/src/coupled-LaplaceBeltrami-Poisson/output/
+
+# Run the executable and copy output files to a specific directory
+CMD ./build/coupledLBP && \
+	# mkdir -p /usr/src/coupled-LaplaceBeltrami-Poisson/output && \
+    pwd && \
+    ls 
+

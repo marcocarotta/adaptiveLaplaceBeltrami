@@ -22,8 +22,17 @@
 - partire da step 38 e aggiungere step 4 modificato aggiungendo gli affineconstraint
 - partire da step 38 e aggiungere step 6 senza utilizzare ladattivita 
 
- 
 
+
+## DOUBT
+- nel codice sotto (allinterno della function find_support_points_on_surface)devo mettere solution?
+
+        // Apply Boundary Conditions
+        for (const auto &map_pair : surface_to_volume_dof_mapping) {
+          poisson_constraints.add_line(map_pair.second);
+          poisson_constraints.set_inhomogeneity(map_pair.second, solution[map_pair.first]); // dont know if it is right to access solution with the global dof index
+        }
+  credo sia giusto perche usiamo una base di lagrange, quindi il valore che troviamo in solution è proprio il valore della funzione (che sotto chiamiamo g) e quindi è quello che volgiamo che il problema volumetrico abbia al bordo.
 
 ## Mail
 
@@ -132,3 +141,5 @@ constraints.add_line(map[i])
 constraints.set_inhomogeinity(map[i], g[i])
 
 Con questo dovrebbe riuscire a fare la prima parte.
+
+
