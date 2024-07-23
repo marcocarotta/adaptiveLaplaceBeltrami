@@ -489,10 +489,13 @@ namespace adaptiveLB
     for (const auto &map_pair : surface_to_volume_dof_mapping) {
         poisson_constraints.add_line(map_pair.second);
         poisson_constraints.set_inhomogeneity(map_pair.second, solution[map_pair.first]); // credo sia giusto usare solution, guarda ##doubt in todo.md
+        std::cout << "Added constraint for DoF " << map_pair.second << " with value " << solution[map_pair.first] << std::endl;
     }
     // close the constraints (before i tried to do it in the poisson_make_grid_and_dofs function but thrwos an error)
     poisson_constraints.close();
   }
+
+
   template <int spacedim>
   void adaptiveLBProblem<spacedim>::compute_surface_normals() // this function is not needed at the moment now, as we are only coupling in one direction
   {
@@ -521,13 +524,6 @@ namespace adaptiveLB
 
     poisson_constraints.clear();
     DoFTools::make_hanging_node_constraints(poisson_dof_handler, poisson_constraints);
-
-    // the following is not needed anymore as we will put the constraints in the find_support_points_on_surface function
-
-    // VectorTools::interpolate_boundary_values(poisson_dof_handler,
-    //                                         0,
-    //                                         Functions::ZeroFunction<dim>(),
-    //                                         constraints);
 
     //  cant close poisson constraints here, as we will add more constraints in the find_support_points_on_surface function
     // poisson_constraints.close();
@@ -613,7 +609,7 @@ namespace adaptiveLB
  
     cg.solve(poisson_system_matrix, poisson_solution, poisson_system_rhs, preconditioner);
     
-    constraints.distribute(poisson_solution);
+    poisson_constraints.distribute(poisson_solution);
   }
   
   
@@ -681,33 +677,28 @@ namespace adaptiveLB
   template <int spacedim>
   void adaptiveLBProblem<spacedim>::run()
   {
-    // DA CONTROLLARE SE è CORRETTO
-    const unsigned int max_cycle = 1; // not needed now to do refinement so the cycle is set to 1.
+    // DA CONTROLLARE SE è CORRETTO (la griglia adesso funziona)
+    const unsigned int max_cycle = 1; // not needed now to do refinement so the max_cycle is set to 1.
     for (unsigned int cycle = 0; cycle < max_cycle; ++cycle) 
     {
       std::cout << "Cycle " << cycle << ':' << std::endl;
  
       if (cycle == 0)
         {
-          {// maybe i could remove the scope
-            GridGenerator::half_hyper_ball(poisson_triangulation);
-            poisson_triangulation.refine_global(3);
-      
-            const std::set<types::boundary_id> boundary_ids = {0};
-      
-            GridGenerator::extract_boundary_mesh(poisson_triangulation,
-                                                triangulation,
-                                                boundary_ids);
-          }
+          const unsigned int n_refinements = 2;
+          GridGenerator::half_hyper_ball(poisson_triangulation);
+    
+          const std::set<types::boundary_id> boundary_ids = {0};
+    
+          GridGenerator::extract_boundary_mesh(poisson_triangulation,
+                                              triangulation,
+                                              boundary_ids);
+
           triangulation.set_all_manifold_ids(0);
           triangulation.set_manifold(0, SphericalManifold<dim, spacedim>());
-      
-          // the following is not needed anymore
-          /*
-          triangulation.refine_global(1);
-          GridGenerator::hyper_ball(triangulation);
-          triangulation.refine_global(1);
-          */
+
+          poisson_triangulation.refine_global(n_refinements);
+          triangulation.refine_global(n_refinements);
         }
       else
         refine_grid(); 
@@ -717,6 +708,7 @@ namespace adaptiveLB
                 << triangulation.n_active_cells() << std::endl;
  
       make_grid_and_dofs();
+
       std::cout << "   Number of degrees of freedom Laplace-Beltrami: " << dof_handler.n_dofs()
                 << std::endl;
  
@@ -729,6 +721,7 @@ namespace adaptiveLB
           << poisson_triangulation.n_active_cells() << std::endl;
       
       poisson_make_grid_and_dofs();
+      
       std::cout << "   Number of degrees of freedom Poisson: " << poisson_dof_handler.n_dofs()
                 << std::endl;
 
